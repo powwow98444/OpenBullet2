@@ -30,10 +30,10 @@ namespace RuriLib.Models.Jobs
         public IProxyGeolocationProvider GeoProvider { get; set; }
 
         // Getters
-        public override float Progress => parallelizer != null ? parallelizer.Progress : -1;
-        public TimeSpan Elapsed => parallelizer != null ? parallelizer.Elapsed : TimeSpan.Zero;
-        public TimeSpan Remaining => parallelizer != null ? parallelizer.Remaining : System.Threading.Timeout.InfiniteTimeSpan;
-        public int CPM => parallelizer != null ? parallelizer.CPM : 0;
+        public override float Progress => parallelizer?.Progress ?? -1;
+        public TimeSpan Elapsed => parallelizer?.Elapsed ?? TimeSpan.Zero;
+        public TimeSpan Remaining => parallelizer?.Remaining ?? System.Threading.Timeout.InfiniteTimeSpan;
+        public int CPM => parallelizer?.CPM ?? 0;
 
         // Private fields
         private Parallelizer<ProxyCheckInput, Proxy> parallelizer;
@@ -131,7 +131,7 @@ namespace RuriLib.Models.Jobs
         #endregion
 
         #region Controls
-        public override async Task Start()
+        public override async Task Start(CancellationToken cancellationToken = default)
         {
             if (Status is JobStatus.Starting or JobStatus.Running)
                 throw new Exception("Job already started");

@@ -10,6 +10,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -58,7 +59,7 @@ namespace RuriLib.Functions.Http
                 if (options.UrlEncodeContent)
                 {
                     content = string.Join("", content.SplitInChunks(2080)
-                        .Select(s => Uri.EscapeDataString(s)))
+                        .Select(Uri.EscapeDataString))
                         .Replace($"%26", "&").Replace($"%3D", "=");
                 }
 
@@ -240,7 +241,7 @@ namespace RuriLib.Functions.Http
             finally
             {
                 if (fileStream != null)
-                    fileStream.Dispose();
+                    await fileStream.DisposeAsync().ConfigureAwait(false);
             }
         }
 
@@ -325,7 +326,7 @@ namespace RuriLib.Functions.Http
                 return string.Join(separator, header.Value);
             }
 
-            data.HEADERS = response.Headers.ToDictionary(h => h.Key, h => GetHeaderValue(h));
+            data.HEADERS = response.Headers.ToDictionary(h => h.Key, GetHeaderValue);
 
             if (response.Content != null)
             {
@@ -352,6 +353,23 @@ namespace RuriLib.Functions.Http
             data.Logger.Log("Received Cookies:", LogColors.MikadoYellow);
             data.Logger.Log(data.COOKIES.Select(h => $"{h.Key}: {h.Value}"), LogColors.Khaki);
 
+            // Decode brotli if still compressed
+            if (data.HEADERS.ContainsKey("Content-Encoding") && data.HEADERS["Content-Encoding"].Contains("br"))
+            {
+                try
+                {
+                    using var inputStream = new MemoryStream(data.RAWSOURCE);
+                    using var outputStream = new MemoryStream();
+                    await using var brotli = new BrotliStream(inputStream, CompressionMode.Decompress, false);
+                    await brotli.CopyToAsync(outputStream);
+                    data.RAWSOURCE = outputStream.ToArray();
+                }
+                catch
+                {
+                    data.Logger.Log("[WARNING] Tried to decompress brotli but failed", LogColors.DarkOrange);
+                }
+            }
+
             // Unzip the GZipped content if still gzipped (after Content-Length calculation)
             if (data.RAWSOURCE.Length > 1 && data.RAWSOURCE[0] == 0x1F && data.RAWSOURCE[1] == 0x8B)
             {
@@ -361,7 +379,7 @@ namespace RuriLib.Functions.Http
                 }
                 catch
                 {
-                    data.Logger.Log("Tried to unzip but failed", LogColors.DarkOrange);
+                    data.Logger.Log("[WARNING] Tried to decompress gzip but failed", LogColors.DarkOrange);
                 }
             }
 

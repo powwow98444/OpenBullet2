@@ -95,7 +95,7 @@ namespace RuriLib.Helpers.Blocks
                         ExtraInfo = attribute.extraInfo ?? string.Empty,
                         AssemblyFullName = assembly.FullName,
                         Parameters = method.GetParameters().Where(p => p.ParameterType != typeof(BotData))
-                            .Select(p => BuildBlockParameter(p)).ToDictionary(p => p.Name, p => p),
+                            .Select(BuildBlockParameter).ToDictionary(p => p.Name, p => p),
                         ReturnType = ToVariableType(method.ReturnType),
                         Category = new BlockCategory
                         {
@@ -247,7 +247,11 @@ namespace RuriLib.Helpers.Blocks
             var dict = new Dictionary<Type, Func<BlockParameter>>
             {
                 { typeof(string), () => new StringParameter
-                    { DefaultValue = parameter.HasDefaultValue ? (string)parameter.DefaultValue : "" } },
+                    { 
+                        DefaultValue = parameter.HasDefaultValue ? (string)parameter.DefaultValue : "",
+                        MultiLine = parameter.GetCustomAttribute<Attributes.MultiLine>() != null
+                    }
+                },
 
                 { typeof(int), () => new IntParameter
                     { DefaultValue = parameter.HasDefaultValue ? (int)parameter.DefaultValue : 0 } },
@@ -264,10 +268,19 @@ namespace RuriLib.Helpers.Blocks
                 { typeof(byte[]), () => new ByteArrayParameter() }
             };
 
+            var blockParamAttribute = parameter.GetCustomAttribute<Attributes.BlockParam>();
+
             // If it's one of the standard types
             if (dict.ContainsKey(parameter.ParameterType))
             {
                 var blockParam = dict[parameter.ParameterType].Invoke();
+                
+                if (blockParamAttribute != null)
+                {
+                    blockParam.AssignedName = blockParamAttribute.name;
+                    blockParam.Description = blockParamAttribute.description;
+                }
+
                 blockParam.Name = parameter.Name;
                 return blockParam;
             }
@@ -275,7 +288,7 @@ namespace RuriLib.Helpers.Blocks
             // If it's an enum type
             if (parameter.ParameterType.IsEnum)
             {
-                return new EnumParameter
+                var blockParam = new EnumParameter
                 {
                     Name = parameter.Name,
                     EnumType = parameter.ParameterType,
@@ -283,6 +296,13 @@ namespace RuriLib.Helpers.Blocks
                         ? parameter.DefaultValue.ToString()
                         : Enum.GetNames(parameter.ParameterType).First()
                 };
+
+                if (blockParamAttribute != null)
+                {
+                    blockParam.AssignedName = blockParamAttribute.name;
+                }
+
+                return blockParam;
             }
 
             throw new ArgumentException($"Parameter {parameter.Name} has an invalid type ({parameter.ParameterType})");
@@ -294,11 +314,12 @@ namespace RuriLib.Helpers.Blocks
         public CategoryTreeNode AsTree()
         {
             // This is the root node, all assemblies are direct children of this node
-            var root = new CategoryTreeNode { Name = "Root" };
-
-            // Add all descriptors as children of the root node (we need the ToList() in order to have
-            // a new pointer to list and not operate on the same one Descriptors uses, since we will be removing items)
-            root.Descriptors = Descriptors.Values.ToList();
+            var root = new CategoryTreeNode {
+                Name = "Root",
+                // Add all descriptors as children of the root node (we need the ToList() in order to have
+                // a new pointer to list and not operate on the same one Descriptors uses, since we will be removing items)
+                Descriptors = Descriptors.Values.ToList()
+            };
 
             // Push leaves down
             PushLeaves(root, 0);

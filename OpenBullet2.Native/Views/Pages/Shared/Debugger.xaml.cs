@@ -1,4 +1,4 @@
-﻿using OpenBullet2.Native.Extensions;
+using OpenBullet2.Native.Extensions;
 using OpenBullet2.Native.Helpers;
 using OpenBullet2.Native.Services;
 using OpenBullet2.Native.ViewModels;
@@ -56,6 +56,8 @@ namespace OpenBullet2.Native.Views.Pages.Shared
             }
         }
 
+        private void TakeStep(object sender, RoutedEventArgs e) => vm.TakeStep();
+
         private void Stop(object sender, RoutedEventArgs e) => vm.Stop();
 
         private void NewLogEntry(object sender, BotLoggerEntry entry)
@@ -70,6 +72,7 @@ namespace OpenBullet2.Native.Views.Pages.Shared
                 {
                     logRTB.SelectionStart = logRTB.TextLength;
                     logRTB.ScrollToCaret();
+                    logRTB.ClearUndoHistory();
                 }
                 catch
                 {
@@ -82,6 +85,15 @@ namespace OpenBullet2.Native.Views.Pages.Shared
                 {
                     var color = variable.MarkedForCapture ? LogColors.Tomato : LogColors.Yellow;
                     variablesRTB.AppendText($"{variable.Name} ({variable.Type}) = {variable.AsString()}", color);
+                }
+
+                try
+                {
+                    logRTB.ClearUndoHistory();
+                }
+                catch
+                {
+
                 }
 
                 // Update the HTML view
